@@ -75,6 +75,17 @@ def build_manifest(
     return rows
 
 
+def load_manifest(path: Path) -> list[ManifestRow]:
+    rows: list[ManifestRow] = []
+    with Path(path).open("r", encoding="utf-8") as f:
+        for line in f:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            rows.append(ManifestRow.model_validate_json(stripped))
+    return rows
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="docflow manifest build")
     parser.add_argument("folder", type=Path)

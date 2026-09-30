@@ -16,6 +16,9 @@ dependencies = [
     "pypdf>=4.0",
 ]
 
+[project.scripts]
+docflow = "docflow.cli:main"
+
 [dependency-groups]
 dev = [
     "ruff>=0.6",

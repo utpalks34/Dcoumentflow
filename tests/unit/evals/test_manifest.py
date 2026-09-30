@@ -11,7 +11,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from docflow.evals.manifest import build_manifest
+from docflow.evals.manifest import build_manifest, load_manifest
 from tests.helpers.pdf_fixtures import pdf_with_text
 
 
@@ -106,3 +106,22 @@ class TestBuildManifest:
 
         assert rows == []
         assert out_path.read_text(encoding="utf-8") == ""
+
+
+class TestLoadManifest:
+    def test_round_trips_through_build_manifest(self, tmp_path: Path) -> None:
+        _write(tmp_path / "a.pdf", pdf_with_text("Invoice A"))
+        _write(tmp_path / "b.pdf", pdf_with_text("Invoice B"))
+        out_path = tmp_path / "out" / "pilot.jsonl"
+
+        built_rows = build_manifest(tmp_path, out_path)
+        loaded_rows = load_manifest(out_path)
+
+        assert loaded_rows == built_rows
+
+    def test_empty_manifest_file_loads_empty_list(self, tmp_path: Path) -> None:
+        out_path = tmp_path / "out" / "pilot.jsonl"
+        out_path.parent.mkdir(parents=True)
+        out_path.write_text("", encoding="utf-8")
+
+        assert load_manifest(out_path) == []
