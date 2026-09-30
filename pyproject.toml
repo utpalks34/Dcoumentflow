@@ -10,6 +10,10 @@ dependencies = [
     # assignment for line-item F1, TR-EVAL-05) and scipy.stats (Wilson/Clopper-Pearson
     # intervals). BSD-3-Clause licensed, compatible with this project staying swappable.
     "scipy>=1.11",
+    # Needed for tools/profile.py and evals/manifest.py: page count, text-layer
+    # detection (pypdf text extraction), and PDF producer/creator metadata, with
+    # no external binary dependency. BSD-3-Clause licensed.
+    "pypdf>=4.0",
 ]
 
 [dependency-groups]
