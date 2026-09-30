@@ -6,6 +6,10 @@ requires-python = ">=3.11,<3.12"
 dependencies = [
     "pydantic>=2.7",
     "pyyaml>=6.0",
+    # Needed for evals/metrics.py: scipy.optimize.linear_sum_assignment (Hungarian
+    # assignment for line-item F1, TR-EVAL-05) and scipy.stats (Wilson/Clopper-Pearson
+    # intervals). BSD-3-Clause licensed, compatible with this project staying swappable.
+    "scipy>=1.11",
 ]
 
 [dependency-groups]
@@ -36,6 +40,10 @@ select = ["E", "F", "I", "UP", "B"]
 python_version = "3.11"
 strict = true
 files = ["src/docflow/core", "src/docflow/evals"]
+
+[[tool.mypy.overrides]]
+module = ["scipy.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
