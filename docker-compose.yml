@@ -1,0 +1,21 @@
+# Phase 1 scope (docs/05_Phase_Plan.md, P1-T1): postgres + redis only.
+# api, worker, phoenix, n8n, review-ui are added in later phases.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: docflow
+      POSTGRES_PASSWORD: docflow
+      POSTGRES_DB: docflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+volumes:
+  postgres_data:

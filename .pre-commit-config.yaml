@@ -1,0 +1,34 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.11.2
+    hooks:
+      - id: mypy
+        files: ^src/docflow/core/
+        additional_dependencies: ["pydantic>=2.7"]
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
+
+  - repo: local
+    hooks:
+      - id: block-dataset-paths
+        name: block committing real documents / raw datasets
+        description: "Hard rule 8 (docs/06_LLM_Instructions.md): never commit real documents or evals/datasets/raw/."
+        entry: bash -c 'git diff --cached --name-only -- "evals/datasets/raw/*" "invoices/*.pdf" "data/*" | grep -v -- "-e .gitkeep$" | grep -q . && { echo "Refusing to commit a real document / raw dataset path"; exit 1; } || exit 0'
+        language: system
+        pass_filenames: false

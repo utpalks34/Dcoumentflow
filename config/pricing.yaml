@@ -1,0 +1,5 @@
+# Model pricing table (docs/06_LLM_Instructions.md, Part A11).
+# Every entry must carry an effective_date; verify prices before every
+# milestone run. Empty until a Tier 1/Tier 2 model is chosen (Phase 2).
+
+models: []

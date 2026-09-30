@@ -1,0 +1,27 @@
+# DocFlow runtime configuration (TR-ENV-06). Secrets stay in environment
+# variables, never here. Environment variables override these values.
+#
+# Sections are filled in as each phase adds the corresponding capability —
+# see docs/05_Phase_Plan.md. Empty/null values are placeholders, not decisions.
+
+models:
+  tier1: null
+  tier2: null
+
+gateway:
+  mode: replay  # live | record | replay — see docs/06_LLM_Instructions.md A11
+
+timeouts:
+  model_call_seconds: 60
+
+limits:
+  max_tokens: 2000
+  max_tokens_long_line_items: 4000  # used when > 30 line items are expected
+
+tolerances: {}
+
+critical_fields:
+  - vendor_name
+  - invoice_number
+  - invoice_date
+  - total
