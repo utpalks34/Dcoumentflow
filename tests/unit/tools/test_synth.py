@@ -8,11 +8,22 @@ the existing normalize.py (never a parallel parsing implementation).
 
 from __future__ import annotations
 
+import io
 from decimal import Decimal
+from pathlib import Path
+
+from pypdf import PdfReader
 
 from docflow.core.normalize import normalize_currency, parse_amount, parse_date
 from docflow.evals.metrics import HEADER_FIELDS
-from docflow.tools.synth import DEFAULT_N, DEFAULT_SEED, generate_dataset, to_label_record
+from docflow.tools.synth import (
+    DEFAULT_N,
+    DEFAULT_SEED,
+    generate_dataset,
+    render_pdf,
+    to_label_record,
+    write_dataset,
+)
 
 
 class TestGenerateDataset:
@@ -108,3 +119,52 @@ class TestToLabelRecord:
         assert values.invoice_date == inv.invoice_date
         assert values.total == inv.total
         assert len(values.line_items) == len(inv.line_items)
+
+
+class TestRenderPdf:
+    def test_produces_readable_single_page_pdf(self) -> None:
+        inv = generate_dataset(seed=DEFAULT_SEED, n=1)[0]
+        pdf_bytes = render_pdf(inv)
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+        assert len(reader.pages) == 1
+
+    def test_pdf_contains_extractable_text(self) -> None:
+        inv = generate_dataset(seed=DEFAULT_SEED, n=1)[0]
+        pdf_bytes = render_pdf(inv)
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+        assert len(reader.pages[0].extract_text().strip()) > 0
+
+
+class TestWriteDataset:
+    def test_writes_matched_pdf_and_label_per_doc(self, tmp_path: Path) -> None:
+        out_dir = tmp_path / "invoices"
+        labels_dir = tmp_path / "labels"
+
+        invoices = write_dataset(out_dir, labels_dir, seed=1, n=5)
+
+        assert len(invoices) == 5
+        for inv in invoices:
+            assert (out_dir / f"{inv.doc_id}.pdf").exists()
+            assert (labels_dir / f"{inv.doc_id}.json").exists()
+
+    def test_label_files_are_byte_identical_across_regeneration(self, tmp_path: Path) -> None:
+        out_a, labels_a = tmp_path / "a_pdf", tmp_path / "a_labels"
+        out_b, labels_b = tmp_path / "b_pdf", tmp_path / "b_labels"
+
+        write_dataset(out_a, labels_a, seed=99, n=8)
+        write_dataset(out_b, labels_b, seed=99, n=8)
+
+        files_a = sorted(labels_a.iterdir())
+        files_b = sorted(labels_b.iterdir())
+        assert [p.name for p in files_a] == [p.name for p in files_b]
+        for pa, pb in zip(files_a, files_b, strict=True):
+            assert pa.read_bytes() == pb.read_bytes()
+
+    def test_label_json_is_loadable_as_label_record(self, tmp_path: Path) -> None:
+        from docflow.core.schemas import LabelRecord
+
+        write_dataset(tmp_path / "pdf", tmp_path / "labels", seed=1, n=1)
+        label_path = next((tmp_path / "labels").iterdir())
+
+        record = LabelRecord.model_validate_json(label_path.read_text(encoding="utf-8"))
+        assert record.doc_id == "dev_clean_000"

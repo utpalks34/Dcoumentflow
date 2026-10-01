@@ -14,6 +14,9 @@ dependencies = [
     # detection (pypdf text extraction), and PDF producer/creator metadata, with
     # no external binary dependency. BSD-3-Clause licensed.
     "pypdf>=4.0",
+    # Needed for tools/synth.py: generates the DEV-clean synthetic invoice
+    # PDFs. BSD-licensed (ReportLab Toolkit, open-source edition).
+    "reportlab>=4.0,<5",
 ]
 
 [project.scripts]

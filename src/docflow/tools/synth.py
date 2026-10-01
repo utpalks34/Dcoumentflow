@@ -15,11 +15,15 @@ DEV-clean exists to exercise normalization and scoring, not error recovery).
 
 from __future__ import annotations
 
+import io
 import random
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
+
+from reportlab.lib.pagesizes import LETTER
+from reportlab.pdfgen import canvas
 
 from docflow.core.schemas import CanonicalInvoice, CanonicalLineItem, LabelRecord
 from docflow.evals.metrics import HEADER_FIELDS
@@ -180,3 +184,53 @@ def to_label_record(inv: SynthInvoice) -> LabelRecord:
         labeled_fields=[*HEADER_FIELDS, "line_items"],
         values=values,
     )
+
+
+def render_pdf(inv: SynthInvoice) -> bytes:
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=LETTER)
+    width, height = LETTER
+    y = height - 72
+
+    def line(text: str, size: int = 11, dy: int = 16) -> None:
+        nonlocal y
+        c.setFont("Helvetica", size)
+        c.drawString(72, y, text)
+        y -= dy
+
+    line(inv.vendor_name, size=14, dy=24)
+    line(f"Invoice Number: {inv.invoice_number}")
+    line(f"Invoice Date: {inv.invoice_date_text}")
+    line(f"Currency: {inv.currency_text}")
+    y -= 10
+    line("Description            Qty  Unit Price   Amount")
+    for li in inv.line_items:
+        line(
+            f"{li.description:<22} {li.qty!s:>4} "
+            f"{inv.currency_text}{li.unit_price:.2f} {inv.currency_text}{li.amount:.2f}"
+        )
+    y -= 10
+    line(f"Subtotal: {inv.currency_text}{inv.subtotal_text}")
+    line(f"Tax: {inv.currency_text}{inv.tax_text}")
+    line(f"Total: {inv.currency_text}{inv.total_text}", size=13, dy=20)
+
+    c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
+def write_dataset(
+    out_dir: Path = DEFAULT_OUT_DIR,
+    labels_dir: Path = DEFAULT_LABELS_DIR,
+    seed: int = DEFAULT_SEED,
+    n: int = DEFAULT_N,
+) -> list[SynthInvoice]:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    labels_dir.mkdir(parents=True, exist_ok=True)
+
+    invoices = generate_dataset(seed=seed, n=n)
+    for inv in invoices:
+        (out_dir / f"{inv.doc_id}.pdf").write_bytes(render_pdf(inv))
+        label = to_label_record(inv)
+        (labels_dir / f"{inv.doc_id}.json").write_text(label.model_dump_json(), encoding="utf-8")
+    return invoices
