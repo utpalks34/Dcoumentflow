@@ -168,3 +168,63 @@ class TestWriteDataset:
 
         record = LabelRecord.model_validate_json(label_path.read_text(encoding="utf-8"))
         assert record.doc_id == "dev_clean_000"
+
+
+class TestRenderedPdfMatchesDisplayStrings:
+    """Review finding (Critical): INR's '₹' symbol has no glyph in Helvetica's
+    WinAnsi encoding and silently renders as a replacement box, so the PDF no
+    longer supports the currency its own label claims. This test renders every
+    generated document and checks every display string actually made it onto
+    the page -- not just that it exists in memory."""
+
+    def test_all_display_strings_appear_in_rendered_text(self) -> None:
+        for inv in generate_dataset(seed=DEFAULT_SEED, n=DEFAULT_N):
+            pdf_bytes = render_pdf(inv)
+            text = PdfReader(io.BytesIO(pdf_bytes)).pages[0].extract_text()
+            assert inv.currency_text in text, f"{inv.doc_id}: currency_text missing from PDF text"
+            assert inv.invoice_date_text in text, f"{inv.doc_id}: date text missing from PDF text"
+            assert inv.total_text in text, f"{inv.doc_id}: total text missing from PDF text"
+            for li in inv.line_items:
+                assert li.unit_price_text in text, f"{inv.doc_id}: line item price text missing"
+                assert li.amount_text in text, f"{inv.doc_id}: line item amount text missing"
+
+
+class TestDateHasNoAmbiguity:
+    """Review finding (Important): a numeric_dmy date with day <= 12 is
+    genuinely ambiguous (could be read as MM/DD), contradicting the plan's
+    "no genuine ambiguity" requirement for this set."""
+
+    def test_date_round_trip_has_no_ambiguity_flag(self) -> None:
+        for inv in generate_dataset(seed=DEFAULT_SEED, n=DEFAULT_N):
+            result = parse_date(inv.invoice_date_text)
+            assert result.flags == (), f"{inv.doc_id}: {inv.invoice_date_text!r} is ambiguous"
+
+
+class TestJpyHasNoFractionalMinorUnit:
+    """Review finding (Important): JPY has no minor unit; a fractional yen
+    amount (e.g. 8970.01) is not a realistic invoice value."""
+
+    def test_jpy_amounts_are_whole_yen(self) -> None:
+        jpy_invoices = [
+            inv for inv in generate_dataset(seed=DEFAULT_SEED, n=DEFAULT_N) if inv.currency == "JPY"
+        ]
+        assert jpy_invoices, "expected at least one JPY invoice in the default dataset"
+        for inv in jpy_invoices:
+            assert inv.subtotal == inv.subtotal.to_integral_value()
+            assert inv.tax_total == inv.tax_total.to_integral_value()
+            assert inv.total == inv.total.to_integral_value()
+            for li in inv.line_items:
+                assert li.unit_price == li.unit_price.to_integral_value()
+                assert li.amount == li.amount.to_integral_value()
+
+
+class TestLineItemTextRoundTrips:
+    """Review finding (Important): line items were always formatted plain
+    US-style regardless of the document's chosen amount style, and were never
+    round-tripped through normalize.py."""
+
+    def test_line_item_text_parses_back_to_canonical_values(self) -> None:
+        for inv in generate_dataset(seed=DEFAULT_SEED, n=DEFAULT_N):
+            for li in inv.line_items:
+                assert parse_amount(li.unit_price_text).value == li.unit_price
+                assert parse_amount(li.amount_text).value == li.amount

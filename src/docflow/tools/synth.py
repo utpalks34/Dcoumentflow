@@ -49,8 +49,15 @@ _ITEM_DESCRIPTIONS = (
     "Control relay", "Hex bolt (100ct)",
 )
 _CURRENCY_DISPLAY = {
-    "USD": "$", "EUR": "€", "GBP": "£", "INR": "₹", "JPY": "¥",
+    # INR prints as the ISO code, not the "₹" symbol: Helvetica's WinAnsi
+    # encoding has no glyph for it and silently renders a replacement box
+    # (review finding, 2026-10-01) -- "INR" still round-trips cleanly through
+    # normalize_currency's ISO-code path.
+    "USD": "$", "EUR": "€", "GBP": "£", "INR": "INR", "JPY": "¥",
 }
+# JPY has no minor unit; every other currency here uses 2 decimal places
+# (review finding, 2026-10-01: a fractional yen amount is not realistic).
+_CURRENCY_DECIMALS = {"USD": 2, "EUR": 2, "GBP": 2, "INR": 2, "JPY": 0}
 _TAX_RATES = (
     Decimal("0.00"), Decimal("0.05"), Decimal("0.08"),
     Decimal("0.10"), Decimal("0.18"), Decimal("0.20"),
@@ -66,7 +73,9 @@ class SynthLineItem:
     description: str
     qty: Decimal
     unit_price: Decimal
+    unit_price_text: str
     amount: Decimal
+    amount_text: str
 
 
 @dataclass(frozen=True)
@@ -97,9 +106,10 @@ def _format_date(d: date, style: str) -> str:
     raise ValueError(f"unknown date style: {style!r}")
 
 
-def _format_amount(value: Decimal, style: str) -> str:
-    quantized = value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    us = f"{quantized:,.2f}"
+def _format_amount(value: Decimal, style: str, decimals: int = 2) -> str:
+    quantum = Decimal(1).scaleb(-decimals)
+    quantized = value.quantize(quantum, rounding=ROUND_HALF_UP)
+    us = f"{quantized:,.{decimals}f}"
     if style == "plain":
         return us.replace(",", "")
     if style == "us_thousands":
@@ -116,29 +126,47 @@ def generate_invoice(index: int, seed: int = DEFAULT_SEED) -> SynthInvoice:
     vendor_name = f"{rng.choice(_VENDOR_PREFIXES)} {rng.choice(_VENDOR_SUFFIXES)}"
     invoice_number = f"INV-{seed % 10000:04d}-{index:04d}"
 
-    invoice_date = _EPOCH + timedelta(days=rng.randrange(_DATE_SPAN_DAYS))
     date_style = _DATE_STYLES[index % len(_DATE_STYLES)]
+    invoice_date = _EPOCH + timedelta(days=rng.randrange(_DATE_SPAN_DAYS))
+    if date_style == "numeric_dmy":
+        # A numeric DD/MM date with day <= 12 is genuinely ambiguous (could be
+        # read as MM/DD) -- resample until it isn't (review finding, 2026-10-01).
+        while invoice_date.day <= 12:
+            invoice_date = _EPOCH + timedelta(days=rng.randrange(_DATE_SPAN_DAYS))
     invoice_date_text = _format_date(invoice_date, date_style)
 
     currency = rng.choice(sorted(_CURRENCY_DISPLAY))
     currency_text = _CURRENCY_DISPLAY[currency]
+    decimals = _CURRENCY_DECIMALS[currency]
+    amount_style = _AMOUNT_STYLES[index % len(_AMOUNT_STYLES)]
 
     n_items = rng.randint(1, 5)
     line_items: list[SynthLineItem] = []
-    subtotal = Decimal("0.00")
+    subtotal = Decimal("0")
     for _ in range(n_items):
         description = rng.choice(_ITEM_DESCRIPTIONS)
         qty = Decimal(rng.randint(1, 20))
-        unit_price = Decimal(rng.randint(100, 25000)) / Decimal(100)
+        if decimals == 0:
+            unit_price = Decimal(rng.randint(1, 25000))
+        else:
+            unit_price = Decimal(rng.randint(100, 25000)) / Decimal(100)
         amount = qty * unit_price
-        line_items.append(SynthLineItem(description, qty, unit_price, amount))
+        line_items.append(
+            SynthLineItem(
+                description=description,
+                qty=qty,
+                unit_price=unit_price,
+                unit_price_text=_format_amount(unit_price, amount_style, decimals),
+                amount=amount,
+                amount_text=_format_amount(amount, amount_style, decimals),
+            )
+        )
         subtotal += amount
 
+    quantum = Decimal(1).scaleb(-decimals)
     tax_rate = rng.choice(_TAX_RATES)
-    tax_total = (subtotal * tax_rate).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    tax_total = (subtotal * tax_rate).quantize(quantum, rounding=ROUND_HALF_UP)
     total = subtotal + tax_total
-
-    amount_style = _AMOUNT_STYLES[index % len(_AMOUNT_STYLES)]
 
     return SynthInvoice(
         doc_id=doc_id,
@@ -150,11 +178,11 @@ def generate_invoice(index: int, seed: int = DEFAULT_SEED) -> SynthInvoice:
         currency_text=currency_text,
         line_items=tuple(line_items),
         subtotal=subtotal,
-        subtotal_text=_format_amount(subtotal, amount_style),
+        subtotal_text=_format_amount(subtotal, amount_style, decimals),
         tax_total=tax_total,
-        tax_text=_format_amount(tax_total, amount_style),
+        tax_text=_format_amount(tax_total, amount_style, decimals),
         total=total,
-        total_text=_format_amount(total, amount_style),
+        total_text=_format_amount(total, amount_style, decimals),
     )
 
 
@@ -208,7 +236,7 @@ def render_pdf(inv: SynthInvoice) -> bytes:
     for li in inv.line_items:
         line(
             f"{li.description:<22} {li.qty!s:>4} "
-            f"{inv.currency_text}{li.unit_price:.2f} {inv.currency_text}{li.amount:.2f}"
+            f"{inv.currency_text}{li.unit_price_text} {inv.currency_text}{li.amount_text}"
         )
     y -= 10
     line(f"Subtotal: {inv.currency_text}{inv.subtotal_text}")
