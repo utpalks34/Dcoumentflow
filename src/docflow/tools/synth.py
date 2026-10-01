@@ -15,6 +15,7 @@ DEV-clean exists to exercise normalization and scoring, not error recovery).
 
 from __future__ import annotations
 
+import argparse
 import io
 import random
 from dataclasses import dataclass
@@ -234,3 +235,19 @@ def write_dataset(
         label = to_label_record(inv)
         (labels_dir / f"{inv.doc_id}.json").write_text(label.model_dump_json(), encoding="utf-8")
     return invoices
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(prog="docflow synth generate")
+    parser.add_argument("--out", type=Path, default=DEFAULT_OUT_DIR)
+    parser.add_argument("--labels-out", type=Path, default=DEFAULT_LABELS_DIR)
+    parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    parser.add_argument("--n", type=int, default=DEFAULT_N)
+    args = parser.parse_args(argv)
+
+    invoices = write_dataset(args.out, args.labels_out, seed=args.seed, n=args.n)
+    print(f"wrote {len(invoices)} matched pairs to {args.out} and {args.labels_out}")
+
+
+if __name__ == "__main__":
+    main()

@@ -37,6 +37,29 @@ class TestCliDispatch:
 
         assert "n_documents: 1" in capsys.readouterr().out
 
+    def test_synth_generate(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        out_dir = tmp_path / "invoices"
+        labels_dir = tmp_path / "labels"
+
+        main(
+            [
+                "synth",
+                "generate",
+                "--out",
+                str(out_dir),
+                "--labels-out",
+                str(labels_dir),
+                "--seed",
+                "1",
+                "--n",
+                "3",
+            ]
+        )
+
+        assert len(list(out_dir.glob("*.pdf"))) == 3
+        assert len(list(labels_dir.glob("*.json"))) == 3
+        assert "wrote 3 matched pairs" in capsys.readouterr().out
+
     def test_unknown_command_exits_nonzero(self) -> None:
         with pytest.raises(SystemExit) as exc_info:
             main(["bogus"])

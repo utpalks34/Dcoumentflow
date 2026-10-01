@@ -11,10 +11,12 @@ import sys
 from docflow.evals import manifest as manifest_tool
 from docflow.evals import runner as eval_runner
 from docflow.tools import profile as profile_tool
+from docflow.tools import synth as synth_tool
 
 _USAGE = (
     "usage: docflow <manifest build <folder> | profile <folder> | "
-    "eval run --system S --manifest M>"
+    "eval run --system S --manifest M | synth generate [--out DIR] [--labels-out DIR] "
+    "[--seed N] [--n N]>"
 )
 
 
@@ -35,6 +37,10 @@ def main(argv: list[str] | None = None) -> None:
         if not rest or rest[0] != "run":
             _usage_error()
         eval_runner.main(rest[1:])
+    elif command == "synth":
+        if not rest or rest[0] != "generate":
+            _usage_error()
+        synth_tool.main(rest[1:])
     else:
         _usage_error()
 
