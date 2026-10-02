@@ -102,3 +102,33 @@ def test_round_trip_day_month_name_year(days_offset: int) -> None:
 
     assert value == d
     assert flags == ()
+
+
+# Two-digit years only round-trip unambiguously within the pivot's own
+# range (00-69 -> 2000-2069, 70-99 -> 1970-1999): a year outside
+# 1970-2069 would pivot back to the wrong century, so this is the only
+# range the property can assert on.
+_PIVOT_RANGE_START = date(1970, 1, 1)
+_PIVOT_RANGE_END = date(2069, 12, 31)
+
+
+@given(d=st.dates(min_value=_PIVOT_RANGE_START, max_value=_PIVOT_RANGE_END))
+def test_round_trip_two_digit_year_day_first(d: date) -> None:
+    formatted = f"{d.day:02d}/{d.month:02d}/{d.year % 100:02d}"
+
+    value, flags = parse_date(formatted)
+
+    assert value is not None
+    assert value.year == d.year
+    assert "DATE_TWO_DIGIT_YEAR" in flags
+
+
+@given(d=st.dates(min_value=_PIVOT_RANGE_START, max_value=_PIVOT_RANGE_END))
+def test_round_trip_two_digit_year_month_first(d: date) -> None:
+    formatted = f"{d.month:02d}/{d.day:02d}/{d.year % 100:02d}"
+
+    value, flags = parse_date(formatted)
+
+    assert value is not None
+    assert value.year == d.year
+    assert "DATE_TWO_DIGIT_YEAR" in flags

@@ -14,6 +14,10 @@ dependencies = [
     # detection (pypdf text extraction), and PDF producer/creator metadata, with
     # no external binary dependency. BSD-3-Clause licensed.
     "pypdf>=4.0",
+    # Needed for kaggle_dataset.py: one-off fetch of the public SROIE-datasetv2
+    # Kaggle dataset into local cache for DEV-split sourcing (not committed;
+    # see evals/datasets/raw/ handling in CLAUDE.md). Apache-2.0 licensed.
+    "kagglehub>=1.0.2",
     # Needed for tools/synth.py: generates the DEV-clean synthetic invoice
     # PDFs. BSD-licensed (ReportLab Toolkit, open-source edition).
     "reportlab>=4.0,<5",

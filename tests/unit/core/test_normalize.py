@@ -153,6 +153,52 @@ class TestParseDate:
         assert value is None
         assert flags == ("NORMALIZATION_FAILED",)
 
+    def test_two_digit_year_unambiguous_day_month(self) -> None:
+        value, flags = parse_date("25/12/18")
+        assert value == date(2018, 12, 25)
+        assert "DATE_TWO_DIGIT_YEAR" in flags
+
+    def test_two_digit_year_still_flags_ambiguous_day_month(self) -> None:
+        value, flags = parse_date("03/04/25")
+        assert value == date(2025, 4, 3)
+        assert "DATE_AMBIGUOUS_DAY_MONTH" in flags
+        assert "DATE_TWO_DIGIT_YEAR" in flags
+
+    def test_two_digit_year_pivot_00_is_2000(self) -> None:
+        value, flags = parse_date("25/01/00")
+        assert value == date(2000, 1, 25)
+        assert "DATE_TWO_DIGIT_YEAR" in flags
+
+    def test_two_digit_year_pivot_99_is_1999(self) -> None:
+        value, flags = parse_date("25/01/99")
+        assert value == date(1999, 1, 25)
+        assert "DATE_TWO_DIGIT_YEAR" in flags
+
+    def test_two_digit_year_pivot_69_is_2069(self) -> None:
+        value, flags = parse_date("25/01/69")
+        assert value == date(2069, 1, 25)
+        assert "DATE_TWO_DIGIT_YEAR" in flags
+
+    def test_two_digit_year_pivot_70_is_1970(self) -> None:
+        value, flags = parse_date("25/01/70")
+        assert value == date(1970, 1, 25)
+        assert "DATE_TWO_DIGIT_YEAR" in flags
+
+    def test_four_digit_year_unaffected_by_pivot_logic(self) -> None:
+        value, flags = parse_date("25/01/2018")
+        assert value == date(2018, 1, 25)
+        assert "DATE_TWO_DIGIT_YEAR" not in flags
+
+    def test_dot_separator_four_digit_year(self) -> None:
+        value, flags = parse_date("25.12.2018")
+        assert value == date(2018, 12, 25)
+        assert "DATE_TWO_DIGIT_YEAR" not in flags
+
+    def test_dot_separator_two_digit_year(self) -> None:
+        value, flags = parse_date("25.12.18")
+        assert value == date(2018, 12, 25)
+        assert "DATE_TWO_DIGIT_YEAR" in flags
+
 
 class TestNormalizeCurrency:
     def test_none_returns_none(self) -> None:

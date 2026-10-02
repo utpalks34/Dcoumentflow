@@ -49,7 +49,7 @@ _MONTHS = {
 _ISO_DATE_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
 _DAY_MONTHNAME_YEAR_RE = re.compile(r"^(\d{1,2})\s+([A-Za-z]+)\.?\s+(\d{4})$")
 _MONTHNAME_DAY_YEAR_RE = re.compile(r"^([A-Za-z]+)\.?\s+(\d{1,2}),?\s+(\d{4})$")
-_NUMERIC_DATE_RE = re.compile(r"^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$")
+_NUMERIC_DATE_RE = re.compile(r"^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4}|\d{2})$")
 
 _CURRENCY_SYMBOLS = {
     "€": "EUR",  # €
@@ -207,8 +207,15 @@ def parse_date(raw: str | None, dayfirst: bool | None = None) -> DateResult:
     numeric_match = _NUMERIC_DATE_RE.match(text)
     if numeric_match:
         a_s, b_s, year_s = numeric_match.groups()
-        a, b, year = int(a_s), int(b_s), int(year_s)
+        a, b = int(a_s), int(b_s)
         flags: list[str] = []
+        if len(year_s) == 2:
+            # Standard pivot convention: 00-69 -> 2000-2069, 70-99 -> 1970-1999.
+            two_digit_year = int(year_s)
+            year = 2000 + two_digit_year if two_digit_year <= 69 else 1900 + two_digit_year
+            flags.append("DATE_TWO_DIGIT_YEAR")
+        else:
+            year = int(year_s)
         if a > 12 and b <= 12:
             day, month = a, b
         elif b > 12 and a <= 12:
