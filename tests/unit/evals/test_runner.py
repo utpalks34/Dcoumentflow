@@ -13,8 +13,9 @@ from pathlib import Path
 
 import pytest
 
-from docflow.evals.manifest import build_manifest
-from docflow.evals.runner import run_eval
+from docflow.core.schemas import CanonicalInvoice, LabelRecord
+from docflow.evals.manifest import ManifestRow, build_manifest, write_manifest
+from docflow.evals.runner import run_eval, run_eval_split
 from tests.helpers.pdf_fixtures import pdf_with_text
 
 
@@ -48,3 +49,102 @@ class TestRunEval:
         summary = run_eval(manifest_path, "null")
 
         assert summary.n_documents == 0
+
+
+def _write_label(labels_root: Path, dataset: str, doc_id: str, **values: str) -> None:
+    (labels_root / dataset).mkdir(parents=True, exist_ok=True)
+    record = LabelRecord(
+        doc_id=doc_id,
+        label_source="dataset",
+        labeled_fields=list(values),
+        values=CanonicalInvoice(**values),
+    )
+    (labels_root / dataset / f"{doc_id}.json").write_text(
+        record.model_dump_json(), encoding="utf-8"
+    )
+
+
+class TestRunEvalSplit:
+    def test_scores_only_rows_in_the_requested_split(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        write_manifest(
+            [
+                ManifestRow(
+                    doc_id="sroie_A",
+                    path="x",
+                    sha256="a" * 64,
+                    pages=1,
+                    source="public",
+                    split="dev_hard",
+                ),
+                ManifestRow(
+                    doc_id="sroie_B",
+                    path="x",
+                    sha256="b" * 64,
+                    pages=1,
+                    source="public",
+                    split="test_hard",
+                ),
+            ],
+            Path("data/manifests/all.jsonl"),
+        )
+        _write_label(Path("data/labels"), "sroie", "sroie_A", vendor_name="Acme")
+
+        summary = run_eval_split("dev_hard", "null", manifest_path=Path("data/manifests/all.jsonl"))
+
+        assert summary.n_documents == 1
+
+    def test_refuses_test_split_without_allow_test(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        write_manifest(
+            [
+                ManifestRow(
+                    doc_id="sroie_B",
+                    path="x",
+                    sha256="b" * 64,
+                    pages=1,
+                    source="public",
+                    split="test_hard",
+                )
+            ],
+            Path("data/manifests/all.jsonl"),
+        )
+        _write_label(Path("data/labels"), "sroie", "sroie_B", vendor_name="Acme")
+
+        with pytest.raises(PermissionError):
+            run_eval_split("test_hard", "null", manifest_path=Path("data/manifests/all.jsonl"))
+
+    def test_allow_test_permits_test_split(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        write_manifest(
+            [
+                ManifestRow(
+                    doc_id="sroie_B",
+                    path="x",
+                    sha256="b" * 64,
+                    pages=1,
+                    source="public",
+                    split="test_hard",
+                )
+            ],
+            Path("data/manifests/all.jsonl"),
+        )
+        _write_label(Path("data/labels"), "sroie", "sroie_B", vendor_name="Acme")
+
+        summary = run_eval_split(
+            "test_hard", "null", manifest_path=Path("data/manifests/all.jsonl"), allow_test=True
+        )
+        assert summary.n_documents == 1
+
+    def test_raises_on_empty_split(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        write_manifest([], Path("data/manifests/all.jsonl"))
+
+        with pytest.raises(ValueError):
+            run_eval_split("dev_hard", "null", manifest_path=Path("data/manifests/all.jsonl"))

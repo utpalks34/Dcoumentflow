@@ -3,7 +3,7 @@
 Wires the subcommands used so far: `docflow manifest build <folder>`,
 `docflow manifest build-sroie <folder> --out M [--seed N]`,
 `docflow manifest merge <m1> <m2>... --out M`, `docflow profile <folder>`,
-`docflow eval run --system S --manifest M`,
+`docflow eval run --system S (--manifest M | --split NAME [--allow-test])`,
 `docflow sroie ingest [--train-dir D] [--test-dir D] [--images-out D] [--labels-out D]`,
 `docflow freeze --split S [--manifest M] [--force]`,
 `docflow verify [--split S] [--manifest M]`.
@@ -24,7 +24,8 @@ _USAGE = (
     "usage: docflow <manifest build <folder> | "
     "manifest build-sroie <folder> --out M [--seed N] | "
     "manifest merge <m1> <m2>... --out M | profile <folder> | "
-    "eval run --system S --manifest M | synth generate [--out DIR] [--labels-out DIR] "
+    "eval run --system S (--manifest M | --split NAME [--allow-test]) | "
+    "synth generate [--out DIR] [--labels-out DIR] "
     "[--seed N] [--n N] | "
     "sroie ingest [--train-dir D] [--test-dir D] [--images-out D] [--labels-out D] | "
     "freeze --split S [--manifest M] [--force] | verify [--split S] [--manifest M]>"
